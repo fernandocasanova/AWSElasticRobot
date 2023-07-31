@@ -1,0 +1,29 @@
+{
+  "MaxCount": 1,
+  "MinCount": 1,
+  "ImageId": "%ImageId%",
+  "InstanceType": "%InstanceType%",
+  "KeyName": "%KeyName%",
+  "EbsOptimized": true,
+  "NetworkInterfaces": [
+    {
+      "AssociatePublicIpAddress": true,
+      "DeviceIndex": 0,
+      "Groups": %SecurityGroups%
+    }
+  ],
+  "TagSpecifications": [
+    {
+      "ResourceType": "instance",
+      "Tags": %Tags%
+    }
+  ],
+  "IamInstanceProfile": {
+    "Arn": "%IamInstanceProfile%"
+  },
+  "PrivateDnsNameOptions": {
+    "HostnameType": "ip-name",
+    "EnableResourceNameDnsARecord": true,
+    "EnableResourceNameDnsAAAARecord": false
+  }
+}
