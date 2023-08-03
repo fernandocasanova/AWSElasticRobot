@@ -2,14 +2,14 @@
 function GetOrchApi([string]$bearerToken, [string]$uri, $headers = $null, [string]$contentType = "application/json", [bool]$debug = $false) {
     $tenantName = ExtractTenantNameFromUri -uri $uri
     if($debug) {
-        Write-Host $uri
+        Write-Output $uri
     }
     if( $headers -eq $null ) {
         $headers = @{"Authorization"="Bearer $($bearerToken)"; "X-UIPATH-TenantName"="$($tenantName)"}
     }
     $response = Invoke-WebRequest -Method 'Get' -Uri $uri -Headers $headers -ContentType "$($contentType)"
     if($debug) {
-        Write-Host $response
+        Write-Output $response
     }
     return ConvertFrom-Json $response.Content -AsHashtable
 }
@@ -26,10 +26,10 @@ function PostOrchApi([string]$bearerToken, [string]$uri, $body, $headers = $null
     $tenantName = ExtractTenantNameFromUri -uri $uri
 
     if($debug) {
-        Write-Host $uri
-        Write-Host $body
-        Write-Host (ConvertTo-Json -InputObject $headers -Depth 5)
-        Write-Host $contentType
+        Write-Output $uri
+        Write-Output $body
+        Write-Output (ConvertTo-Json -InputObject $headers -Depth 5)
+        Write-Output $contentType
     }
     if( $headers -eq $null ) {
         $headers = @{"Authorization"="Bearer $($bearerToken)"; "X-UIPATH-TenantName"="$($tenantName)"}
@@ -38,9 +38,9 @@ function PostOrchApi([string]$bearerToken, [string]$uri, $body, $headers = $null
     $response = Invoke-WebRequest -Method "Post" -Uri $uri -Headers $headers -ContentType "$($contentType)" -Body $body_json -SkipHttpErrorCheck
     
     if($debug) {
-        Write-Host ("Response Code: " + $response.StatusCode)
-        Write-Host $response.Content
-        Write-Host $response.Content.GetType()
+        Write-Output ("Response Code: " + $response.StatusCode)
+        Write-Output $response.Content
+        Write-Output $response.Content.GetType()
     }
     return $response.Content
 }
@@ -54,7 +54,7 @@ function AuthenticateToCloudAndGetBearerTokenClientCredentials([string]$clientId
     $uri = $identityServer
     $response = PostOrchApi -bearerToken "" -uri $uri -headers $headers -body $body -contentType "application/x-www-form-urlencoded" -debug $debug
     if($debug) {
-        Write-Host $response
+        Write-Output $response
     }
     $responseObj = (ConvertFrom-Json $response -AsHashtable)
     return $responseObj.access_token
@@ -96,8 +96,8 @@ function GetJobsInFolder([string]$orchestratorApiBaseUrl, `
                 # On the machine we are monitoring
                 
                 $jobs.value += $aValue
-                #Write-Host ("Adding Job " + $aValue.Key.ToString())
-                #Write-Host ("There are " + $jobs.value.Count.ToString() + " elements in the array")
+                #Write-Output ("Adding Job " + $aValue.Key.ToString())
+                #Write-Output ("There are " + $jobs.value.Count.ToString() + " elements in the array")
             }
         }
     }
@@ -108,6 +108,7 @@ function GetLatestJobOnMachineInFolder([string]$orchestratorApiBaseUrl, `
                          [string]$folderId, `
                          [string]$machineName, `
                          [string]$hostName, `
+                         [bool]$includeRunning, `
                          [bool]$debug = $false) {
     
     $uri = "$($orchestratorApiBaseUrl)/odata/Jobs?`$filter=((ProcessType%20eq%20%27Process%27) and (Machine/Name eq '%MACHINENAME%') and (HostMachineName eq '%HOSTNAME%'))&`$top=100&`$expand=Machine&`$orderby=EndTime%20desc"
@@ -119,23 +120,30 @@ function GetLatestJobOnMachineInFolder([string]$orchestratorApiBaseUrl, `
     $result = GetOrchApi -bearerToken $bearerToken -uri "$($uri)" -headers $headers
     
     if($debug) {
-        Write-Host (ConvertTo-Json -InputObject $result -Depth 5)
+        Write-Output (ConvertTo-Json -InputObject $result -Depth 5)
     }
     
     $latestEndDate = (Get-Date).AddDays(-365)
     $latestJob = @{EndTime = $latestEndDate}
     
     foreach($aValue in $result.value) {
-        if($aValue.State -eq "Running") {
-        }
-        else {
+        if($includeRunning) {
             if($aValue.EndTime -gt $latestJob.EndTime) {
                 $latestJob = $aValue
             }
         }
+        else {
+            if($aValue.State -eq "Running") {
+            }
+            else {
+                if($aValue.EndTime -gt $latestJob.EndTime) {
+                    $latestJob = $aValue
+                }
+            }
+        }
     }
     if($debug) {
-        Write-Host (ConvertTo-Json -InputObject $latestJob -Depth 5)
+        Write-Output (ConvertTo-Json -InputObject $latestJob -Depth 5)
     }
     return $latestJob
 }
@@ -161,7 +169,7 @@ function GetAllPendingJobs([hashtable]$inputConfig, `
         
         if($debug)
         {
-            Write-Host ("Getting pending jobs from folder " + $folderName)
+            Write-Output ("Getting pending jobs from folder " + $folderName)
         }
 
         # Job State to monitor (hardcoded):
@@ -185,7 +193,7 @@ function GetAllPendingJobs([hashtable]$inputConfig, `
 
     if($debug)
     {
-        Write-Host (ConvertTo-Json -InputObject $jobs -Depth 5)
+        Write-Output (ConvertTo-Json -InputObject $jobs -Depth 5)
     }
     return $jobs
 }
@@ -193,6 +201,7 @@ function GetAllPendingJobs([hashtable]$inputConfig, `
 function GetLatestJobOnMachine([hashtable]$inputConfig, `
                     [string]$bearerToken,`
                     [array]$hostName,`
+                    [bool]$includeRunning = $false, `
                     [bool]$debug = $false)
 {
     $baseUrl = $inputConfig["baseUrl"]
@@ -210,7 +219,7 @@ function GetLatestJobOnMachine([hashtable]$inputConfig, `
         
         if($debug)
         {
-            Write-Host ("Getting current and past jobs from folder " + $folderName)
+            Write-Output ("Getting current and past jobs from folder " + $folderName)
         }
 
         $aJob = GetLatestJobOnMachineInFolder -orchestratorApiBaseUrl $orchestratorApiBaseUrl `
@@ -218,6 +227,7 @@ function GetLatestJobOnMachine([hashtable]$inputConfig, `
                         -folderId $folderId `
                         -machineName $machineName `
                         -hostName $hostName `
+                        -includeRunning $includeRunning `
                         -debug $debug
         
         if($aJob.EndTime -gt $latestJob.EndTime) {
@@ -233,6 +243,7 @@ function GetLicensedMachines([hashtable]$inputConfig, `
  {
     $baseUrl = $inputConfig["baseUrl"]
     $tenant = $inputConfig["tenant"]
+    $machineName = $inputConfig["machineName"]
 
     $machines = @()
     $orchestratorApiBaseUrl = "$($baseUrl)/$($tenant)/orchestrator_"
@@ -242,7 +253,9 @@ function GetLicensedMachines([hashtable]$inputConfig, `
     $result = GetOrchApi -bearerToken $bearerToken -uri "$($uri)" -debug $debug
     
     foreach($aValue in $result.value) {
-        $machines += $aValue.HostMachineName
+        if($aValue.MachineName -eq $machineName) {
+            $machines += $aValue.HostMachineName
+        }
     }
     return $machines
  }
@@ -266,7 +279,7 @@ function GetAllMachines([hashtable]$inputConfig, `
     
     if($debug)
     {
-        Write-Host ("machineId = " + $machineId)
+        Write-Output ("machineId = " + $machineId)
     }
     
     $uri = "$($orchestratorApiBaseUrl)/odata/Sessions/UiPath.Server.Configuration.OData.GetMachineSessions(key=MACHINEID)?`$filter=(State%20eq%20'Available')"
@@ -280,7 +293,7 @@ function GetAllMachines([hashtable]$inputConfig, `
 
     if($debug)
     {
-        Write-Host (ConvertTo-Json -InputObject $machines -Depth 5)
+        Write-Output (ConvertTo-Json -InputObject $machines -Depth 5)
     }
     return $machines
 }
@@ -327,8 +340,8 @@ function StopAndUnlicenseMachine([hashtable]$inputConfig, `
     
     while($otherMachines.Keys.Count -gt 0) {
         if($debug) {
-            Write-Host ("Machine to stop: " + $hostNameToStop)
-            Write-Host (ConvertTo-Json -InputObject $otherMachines -Depth 5)
+            Write-Output ("Machine to stop: " + $hostNameToStop)
+            Write-Output (ConvertTo-Json -InputObject $otherMachines -Depth 5)
         }
         
         $result = TryUnlicenseMachine -inputConfig $inputConfig `
@@ -353,8 +366,8 @@ function StopAndUnlicenseMachine([hashtable]$inputConfig, `
             }
         }
         if($debug) {
-            Write-Host ("Machine to stop: " + $hostNameToStop)
-            Write-Host (ConvertTo-Json -InputObject $otherMachines -Depth 5)
+            Write-Output ("Machine to stop: " + $hostNameToStop)
+            Write-Output (ConvertTo-Json -InputObject $otherMachines -Depth 5)
         }
     }
     return $hostNameToStop
@@ -391,4 +404,146 @@ function RemoveSessionsForMachine([hashtable]$inputConfig, `
     $body = "{""sessionIds"": [" + ($sessions -join ",") + "]}"
     $headers = @{Authorization="Bearer $($bearerToken)"; accept = "application/json"}
     PostOrchApi -bearerToken $bearerToken -uri "$($uri)" -body $body -headers $headers
+}
+
+function IsMachineInState([hashtable]$inputConfig, `
+                          [string]$bearerToken,`
+                          [string]$hostName,`
+                          [string]$state,`
+                          [bool]$debug = $false)
+{
+    $machineInState = $false
+    
+    $baseUrl = $inputConfig["baseUrl"]
+    $tenant = $inputConfig["tenant"]
+    
+    $statesDict = @{ `
+        Unlicensed = @{ `
+            runtimeType= "Unattended"; `
+            requested = 1; `
+            available = 1; `
+            isLicensed = $false `
+        }; `
+        Available = @{ `
+            runtimeType= "Unattended"; `
+            requested = 1; `
+            available = 1; `
+            isLicensed = $true `
+        }; `
+        InUse = @{ `
+            runtimeType= "Unattended"; `
+            requested = 1; `
+            available = 0; `
+            isLicensed = $true `
+        } `
+    }
+    
+    $MyState = $statesDict[$state]
+
+    $orchestratorApiBaseUrl = "$($baseUrl)/$($tenant)/orchestrator_"
+    
+    $uri = "$($orchestratorApiBaseUrl)/monitoring/MachinesMonitoring/GetMachinesHealthState"
+    
+    $body = "{""timeFrameMinutes"": ""60""}"
+    $headers = @{Authorization="Bearer $($bearerToken)"; accept = "application/json"}
+    $aResponse = PostOrchApi -bearerToken $bearerToken -uri "$($uri)" -body $body -headers $headers
+
+    $aResponseObj = ConvertFrom-Json $aResponse -AsHashtable
+    
+    foreach($aMachine in $aResponseObj.data) {
+        if($aMachine.data.hostMachineName -eq $hostName) {
+            if( ($aMachine.data.runtimes[0].runtimeType -eq $MyState.runtimeType) -and `
+                ($aMachine.data.runtimes[0].requested -eq $MyState.requested) -and `
+                ($aMachine.data.runtimes[0].available -eq $MyState.available) -and `
+                ($aMachine.data.runtimes[0].isLicensed -eq $MyState.isLicensed)`
+               ) {
+                $machineInState = $true
+            }
+        }
+    }
+    
+    return $machineInState
+}
+
+function StopJob([hashtable]$inputConfig, `
+                 [string]$bearerToken,`
+                 [hashtable]$job,`
+                 [string]$killProcess = $false,`
+                 [bool]$debug = $false)
+{
+    $baseUrl = $inputConfig["baseUrl"]
+    $tenant = $inputConfig["tenant"]
+    
+    $orchestratorApiBaseUrl = "$($baseUrl)/$($tenant)/orchestrator_"
+    
+    $uri = "$($orchestratorApiBaseUrl)/odata/Jobs/UiPath.Server.Configuration.OData.StopJobs"
+    
+    $jobId = $job.Id
+    
+    $strategy = "1" # stop
+    if($killProcess) {
+        $strategy = "2" # kill
+    }
+    
+    $body = "{""jobIds"":[$($jobId)],""strategy"":""$($strategy)""}"
+    
+    $headers = @{Authorization="Bearer $($bearerToken)"; accept = "application/json"}
+    $aResponse = PostOrchApi -bearerToken $bearerToken -uri "$($uri)" -body $body -headers $headers
+}
+
+function HardStopAndUnlicenseMachine([hashtable]$inputConfig, `
+                                     [string]$bearerToken,`
+                                     [string]$hostName,`
+                                     [hashtable]$job,`
+                                     [bool]$debug = $false)
+{
+    $successfullyUnlicensed = $false
+    if( IsMachineInState -inputConfig $inputConfig -bearerToken $bearerToken -hostName $hostName -state "InUse" -debug $debug ) {
+        
+        # Make sure that the job is valid
+        if($job.Keys -contains "Id") {
+            
+            # Stop the machine first
+            for($attemptsAtStop = 1; $attemptsAtStop -le $inputConfig.maxAttemptsAtStop; $attemptsAtStop++) {
+                StopJob -inputConfig $inputConfig -bearerToken $bearerToken -job $job -killProcess $false -debug $debug
+                
+                Start-Sleep -s $inputConfig.stopInterval
+                
+                $outcome = TryUnlicenseMachine -inputConfig $inputConfig -bearerToken $bearerToken -hostName $hostName -debug $debug
+                
+                if( $outcome ) {
+                    $successfullyUnlicensed = $true
+                    break
+                }
+            }
+                
+            # then kill it
+            for($attemptsAtKill = 1; $attemptsAtKill -le $inputConfig.maxAttemptsAtKill; $attemptsAtKill++) {
+                StopJob -inputConfig $inputConfig -bearerToken $bearerToken -job $job -killProcess $true -debug $debug
+                
+                Start-Sleep -s $inputConfig.killInterval
+                
+                $outcome = TryUnlicenseMachine -inputConfig $inputConfig -bearerToken $bearerToken -hostName $hostName -debug $debug
+                
+                if( $outcome ) {
+                    $successfullyUnlicensed = $true
+                    break
+                }
+            }
+        }
+    }
+    
+    if(-not $successfullyUnlicensed) {
+        $outcome = TryUnlicenseMachine -inputConfig $inputConfig -bearerToken $bearerToken -hostName $hostName -debug $debug
+    }
+}
+
+function StartJob([hashtable]$inputConfig, `
+                  [string]$bearerToken,`
+                  [string]$hostName,`
+                  [hashtable]$job,`
+                  [bool]$debug = $false)
+{
+    # DUMMY
+    return "" 
 }
