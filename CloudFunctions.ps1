@@ -7,7 +7,7 @@ function CheckInstanceStateRunning($resource, [bool]$debug = $false)
 
     if($debug)
     {
-        Write-Output $instanceState
+        Write-Host $instanceState
     }
 
     $instanceStateObject = ConvertFrom-Json $instanceState -AsHashtable
@@ -27,7 +27,7 @@ function CheckInstanceStateRunning($resource, [bool]$debug = $false)
     }
     catch
     {
-        Write-Output "Error reading status..."
+        Write-Host "Error reading status..."
     }
     return $instanceOK
 }
@@ -40,7 +40,7 @@ function CheckInstanceStateTerminated($resource, [bool]$debug = $false)
 
     if($debug)
     {
-        Write-Output $instanceState
+        Write-Host $instanceState
     }
 
     $instanceStateObject = ConvertFrom-Json $instanceState -AsHashtable
@@ -58,7 +58,7 @@ function CheckInstanceStateTerminated($resource, [bool]$debug = $false)
     }
     catch
     {
-        Write-Output "Error reading status..."
+        Write-Host "Error reading status..."
     }
     return $instanceOK
 }
@@ -71,7 +71,7 @@ function CheckCommandState($resource, [bool]$debug = $false)
 
     if($debug)
     {
-        Write-Output $commandState
+        Write-Host $commandState
     }
 
     $commandStateObject = ConvertFrom-Json $commandState -AsHashtable
@@ -85,7 +85,7 @@ function CheckCommandState($resource, [bool]$debug = $false)
     }
     catch
     {
-        Write-Output "Error reading status..."
+        Write-Host "Error reading status..."
     }
     return $commandOK
 }
@@ -107,7 +107,7 @@ function CheckRobotServiceStarted($resource, [bool]$debug = $false)
 
     if($debug)
     {
-        Write-Output $outputCommand
+        Write-Host $outputCommand
     }
 
     $command = (ConvertFrom-Json $outputCommand -AsHashtable).Command
@@ -119,7 +119,7 @@ function CheckRobotServiceStarted($resource, [bool]$debug = $false)
 
     if($debug)
     {
-        Write-Output $commandState
+        Write-Host $commandState
     }
 
     $commandStateObject = ConvertFrom-Json $commandState -AsHashtable
@@ -133,7 +133,7 @@ function CheckRobotServiceStarted($resource, [bool]$debug = $false)
     }
     catch
     {
-        Write-Output "Error reading status..."
+        Write-Host "Error reading status..."
     }
     return $commandOK
 }
@@ -146,7 +146,7 @@ function CheckSSMInstanceState($resource, [bool]$debug = $false)
 
     if($debug)
     {
-        Write-Output $commandState
+        Write-Host $commandState
     }
 
     $commandStateObject = ConvertFrom-Json $commandState -AsHashtable
@@ -166,7 +166,7 @@ function CheckSSMInstanceState($resource, [bool]$debug = $false)
     }
     catch
     {
-        Write-Output "Error reading status..."
+        Write-Host "Error reading status..."
     }
     return $commandOK
 }
@@ -203,7 +203,7 @@ function WaitForResourceToBeOK($resource, [int]$sleepTimer, [int]$maxIntervals, 
         else
         {
             if($debug) {
-                Write-Output ("Resource initializing : " + (& $functionGetId -resource $resource) + " / attempt : " + $counter.ToString())
+                Write-Host ("Resource initializing : " + (& $functionGetId -resource $resource) + " / attempt : " + $counter.ToString())
             }
             Start-Sleep -s $sleepTimer
             $resourceOK = (& $functionCheckResourceState -resource $resource -debug $debug)
@@ -213,12 +213,12 @@ function WaitForResourceToBeOK($resource, [int]$sleepTimer, [int]$maxIntervals, 
     
     if($error)
     {
-        Write-Output ("Timeout starting resource : " + (& $functionGetId -resource $resource))
+        Write-Host ("Timeout starting resource : " + (& $functionGetId -resource $resource))
     }
     else
     {
         if($debug) {
-            Write-Output ("Resource is OK : " + (& $functionGetId -resource $resource) )
+            Write-Host ("Resource is OK : " + (& $functionGetId -resource $resource) )
         }
     }
 }
@@ -249,7 +249,7 @@ function StartInstance([hashtable]$inputConfig)
     
     WaitForResourceToBeOK -resource $instance -sleepTimer 15 -maxIntervals 20 -functionCheckResourceState ${function:CheckInstanceStateRunning} -functionGetId ${function:GetIdFromInstance}
 
-    Write-Output ("--> Instance started : " + $instance.InstanceId)
+    Write-Host ("--> Instance started : " + $instance.InstanceId)
 
     return $instance
 }
@@ -261,7 +261,7 @@ function TerminateInstance([hashtable]$inputConfig, [string]$instanceId, [bool]$
     
     if($debug)
     {
-        Write-Output $outputCommand
+        Write-Host $outputCommand
     }
 
     WaitForResourceToBeOK -resource $instanceId -sleepTimer 15 -maxIntervals 20 -functionCheckResourceState ${function:CheckInstanceStateTerminated} -functionGetId ${function:GetIdFromResource}
@@ -309,7 +309,7 @@ function DomainUnJoinInstance([hashtable]$inputConfig, [string]$instanceId, [boo
 
     if($debug)
     {
-        Write-Output $outputCommand
+        Write-Host $outputCommand
     }
 
     $command = (ConvertFrom-Json $outputCommand -AsHashtable).Command
@@ -362,7 +362,7 @@ function GetInstanceIdFromHostname([hashtable]$inputConfig, [string]$hostName, [
 
     if($debug)
     {
-        Write-Output $instances
+        Write-Host $instances
     }
 
     $instancesObj = (ConvertFrom-Json $instances -AsHashtable)
@@ -377,7 +377,7 @@ function GetInstanceIdFromHostname([hashtable]$inputConfig, [string]$hostName, [
 
     if($debug)
     {
-        Write-Output "Hostname: $($hostName) corresponds to instanceId: $($instanceId)"
+        Write-Host "Hostname: $($hostName) corresponds to instanceId: $($instanceId)"
     }
     
     return $instanceId
