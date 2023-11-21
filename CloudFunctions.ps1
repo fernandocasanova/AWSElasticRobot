@@ -112,7 +112,7 @@ function CheckRobotServiceStarted($resource, [bool]$debug = $false)
 
     $command = (ConvertFrom-Json $outputCommand -AsHashtable).Command
 
-    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 8 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand}
+    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand}
     
     $commandState = aws ssm get-command-invocation --command-id (GetIdFromCommand -resource $command) --instance-id $resource --output json
     $commandState = $commandState -join ""
@@ -223,7 +223,7 @@ function WaitForResourceToBeOK($resource, [int]$sleepTimer, [int]$maxIntervals, 
     }
 }
 
-function StartInstance([hashtable]$inputConfig)
+function StartInstance([hashtable]$inputConfig, [bool]$debug = $false)
 {
     $InstanceCreateTemplate = $inputConfig.InstanceCreateTemplate
 
@@ -244,10 +244,15 @@ function StartInstance([hashtable]$inputConfig)
 
     $outputCommand = aws ec2 run-instances --cli-input-json "$($InstanceCreateJson)" --output json
     $outputCommand = $outputCommand -join ""
-
+    
+    if($debug)
+    {
+        Write-Host $outputCommand
+    }
+    
     $instance = (ConvertFrom-Json $outputCommand -AsHashtable).Instances[0]
     
-    WaitForResourceToBeOK -resource $instance -sleepTimer 15 -maxIntervals 20 -functionCheckResourceState ${function:CheckInstanceStateRunning} -functionGetId ${function:GetIdFromInstance}
+    WaitForResourceToBeOK -resource $instance -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckInstanceStateRunning} -functionGetId ${function:GetIdFromInstance} -debug $debug
 
     Write-Host ("--> Instance started : " + $instance.InstanceId)
 
@@ -264,16 +269,16 @@ function TerminateInstance([hashtable]$inputConfig, [string]$instanceId, [bool]$
         Write-Host $outputCommand
     }
 
-    WaitForResourceToBeOK -resource $instanceId -sleepTimer 15 -maxIntervals 20 -functionCheckResourceState ${function:CheckInstanceStateTerminated} -functionGetId ${function:GetIdFromResource}
+    WaitForResourceToBeOK -resource $instanceId -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckInstanceStateTerminated} -functionGetId ${function:GetIdFromResource}
 }
 
 
-function CheckSSMInstance([hashtable]$inputConfig, [string]$instanceId)
+function CheckSSMInstance([hashtable]$inputConfig, [string]$instanceId, [bool]$debug = $false)
 {
-    WaitForResourceToBeOK -resource $instanceId -sleepTimer 10 -maxIntervals 9 -functionCheckResourceState ${function:CheckSSMInstanceState} -functionGetId ${function:GetIdFromResource}
+    WaitForResourceToBeOK -resource $instanceId -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckSSMInstanceState} -functionGetId ${function:GetIdFromResource} -debug $debug
 }
 
-function DomainJoinInstance([hashtable]$inputConfig, [string]$instanceId)
+function DomainJoinInstance([hashtable]$inputConfig, [string]$instanceId, [bool]$debug = $false)
 {
     $dnsIpAddresses = $inputConfig["dnsIpAddresses"]
     $directoryId = $inputConfig["directoryId"]
@@ -287,10 +292,15 @@ function DomainJoinInstance([hashtable]$inputConfig, [string]$instanceId)
                          --max-errors "0"
     
     $outputCommand = $outputCommand -join ""
+    
+    if($debug)
+    {
+        Write-Host $outputCommand
+    }
 
     $command = (ConvertFrom-Json $outputCommand -AsHashtable).Command
 
-    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 8 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand}
+    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand} -debug $debug
 }
 
 function DomainUnJoinInstance([hashtable]$inputConfig, [string]$instanceId, [bool]$debug = $false)
@@ -314,12 +324,12 @@ function DomainUnJoinInstance([hashtable]$inputConfig, [string]$instanceId, [boo
 
     $command = (ConvertFrom-Json $outputCommand -AsHashtable).Command
 
-    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 8 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand}
+    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand}
 }
 
 function WaitForRobotServiceToStart([hashtable]$inputConfig, [string]$instanceId)
 {
-    WaitForResourceToBeOK -resource $instanceId -sleepTimer 10 -maxIntervals 9 -functionCheckResourceState ${function:CheckRobotServiceStarted} -functionGetId ${function:GetIdFromResource}
+    WaitForResourceToBeOK -resource $instanceId -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckRobotServiceStarted} -functionGetId ${function:GetIdFromResource}
 }
 
 function ConnectRobotToOrchestrator([hashtable]$inputConfig, [string]$instanceId)
@@ -345,7 +355,7 @@ function ConnectRobotToOrchestrator([hashtable]$inputConfig, [string]$instanceId
 
     $command = (ConvertFrom-Json $outputCommand -AsHashtable).Command
 
-    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 8 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand}
+    WaitForResourceToBeOK -resource $command -sleepTimer 15 -maxIntervals 30 -functionCheckResourceState ${function:CheckCommandState} -functionGetId ${function:GetIdFromCommand}
 }
 
 function GetInstanceIdFromHostname([hashtable]$inputConfig, [string]$hostName, [bool]$debug = $false)

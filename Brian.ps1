@@ -75,7 +75,9 @@ function StopMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$debu
     $idlestMachineEndTime = (Get-Date).AddDays(999)
     
     $licensedMachines = GetLicensedMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $debug
-
+    
+    Write-Host (ConvertTo-Json -InputObject $licensedMachines -Depth 5)
+    
     foreach($hostName in $machines)
     {
         if($licensedMachines.Contains($hostName)) {
@@ -83,8 +85,10 @@ function StopMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$debu
                                          -bearerToken "$($bearerToken)" `
                                          -hostName $hostName
             
-            if(($job.EndTime -gt (Get-Date).AddDays(-364)) -and ($job.EndTime -lt (Get-Date).AddMinutes(-$inputConfig.startMachinesAfterIdleMinutes))) {
-                if($idlestMachineEndTime -gt $job.EndTime) {
+            Write-Host (ConvertTo-Json -InputObject $job -Depth 5)
+            
+            if(($job.EndTime -gt (Get-Date).AddDays(-366)) -and ($job.EndTime -lt (Get-Date).AddMinutes(-$inputConfig.startMachinesAfterIdleMinutes))) {
+                if($idlestMachineEndTime -lt $job.EndTime) {
                     $idlestMachineEndTime = $job.EndTime
                     $idlestMachine = $hostname
                 }
@@ -254,8 +258,10 @@ $bearerToken = AuthenticateToCloudAndGetBearerTokenClientCredentials -identitySe
               -scopes "OR.Assets OR.BackgroundTasks OR.Execution OR.Folders OR.Jobs OR.Machines OR.Monitoring OR.Robots OR.Settings.Read OR.TestSetExecutions OR.TestSets OR.TestSetSchedules OR.Users.Read OR.License" `
               -tenantName "$($tenant)"
 
-StartMachines -inputConfig $inputConfig -bearerToken $bearerToken
+StartMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $true
 
-StopMachines -inputConfig $inputConfig -bearerToken $bearerToken
+StopMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $true
 
 #SwapMachines -inputConfig $inputConfig -bearerToken $bearerToken
+
+# EC2 
