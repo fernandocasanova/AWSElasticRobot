@@ -22,12 +22,12 @@ function StartMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$deb
     }
 
     if($machines.Count -ge $inputConfig.maxMachines) {
-        Write-Host ("--> Maximum number of machines reached for " + $inputConfig.machineName + " / " + ($machines.Count) + " of " + $inputConfig.maxMachines)
+        Write-Host ("--> Maximum number of machines reached for " + $inputConfig.machineName + " / $($inputConfig.minMachines) < $($machines.Count) <= $($inputConfig.maxMachines)")
         $jobs = @()
     }
 
     if($jobs.Count -gt 0) {
-        Write-Host ("--> Jobs found. Starting instance for " + $inputConfig.machineName + " / " + ($machines.Count + 1) + " of " + $inputConfig.maxMachines)
+        Write-Host ("--> Jobs found. Starting instance for " + $inputConfig.machineName + " / $($inputConfig.minMachines) < * $($machines.Count) * < $($inputConfig.maxMachines)")
         
         $instance = StartInstance -inputConfig $inputConfig -debug $debug
         $instanceId = $instance.InstanceId
@@ -65,7 +65,7 @@ function StopMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$debu
                                -debug $debug
     
     if($machines.Count -le $inputConfig.minMachines) {
-        Write-Host ("--> Reached minimum Machine threshold. Cant't stop machine " + $inputConfig.machineName + " / " + ($machines.Count) + " of " + $inputConfig.maxMachines)
+        Write-Host ("--> Reached minimum Machine threshold. Cant't stop machine " + $inputConfig.machineName + " / $($inputConfig.minMachines) <= $($machines.Count) < $($inputConfig.maxMachines)")
         $myDate = (date).ToString().Trim()
         Write-Host ("-> End Stop Machines > " + $myDate)
         return $null
@@ -76,23 +76,27 @@ function StopMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$debu
     
     $licensedMachines = GetLicensedMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $debug
     
-    Write-Host (ConvertTo-Json -InputObject $licensedMachines -Depth 5)
-    
     foreach($hostName in $machines)
     {
         if($licensedMachines.Contains($hostName)) {
-            $job = GetLatestJobOnMachine -inputConfig $inputConfig `
-                                         -bearerToken "$($bearerToken)" `
-                                         -hostName $hostName
             
-            Write-Host (ConvertTo-Json -InputObject $job -Depth 5)
+            if( -not (IsMachineBusy -inputConfig $inputConfig -bearerToken $bearerToken -hostName $hostName -debug $debug) ) {
             
-            if(($job.EndTime -gt (Get-Date).AddDays(-366)) -and ($job.EndTime -lt (Get-Date).AddMinutes(-$inputConfig.startMachinesAfterIdleMinutes))) {
-                if($idlestMachineEndTime -lt $job.EndTime) {
-                    $idlestMachineEndTime = $job.EndTime
-                    $idlestMachine = $hostname
+                $job = GetLatestJobOnMachine -inputConfig $inputConfig `
+                                             -bearerToken "$($bearerToken)" `
+                                             -hostName $hostName
+                
+                if($debug) {
+                    Write-Host ($hostName + " Job EndTime " + $job.EndTime.ToString().Trim() + " / killMachinesAfterIdleMinutes " + (Get-Date).AddMinutes(-$inputConfig.killMachinesAfterIdleMinutes).ToString().Trim())
                 }
-                $contextMachines[$hostname] = $job.EndTime
+                
+                if($job.EndTime -lt (Get-Date).AddMinutes(-$inputConfig.killMachinesAfterIdleMinutes)) {
+                    if($job.EndTime -lt $idlestMachineEndTime) {
+                        $idlestMachineEndTime = $job.EndTime
+                        $idlestMachine = $hostname
+                    }
+                    $contextMachines[$hostname] = $job.EndTime
+                }
             }
         }
     }
@@ -109,17 +113,18 @@ function StopMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$debu
     }
     
     Write-Host ("--> Removing license from machine and ensuring no more work for " + $idlestMachine)
-    $machineActuallyStopped = StopAndUnlicenseMachine -inputConfig $inputConfig `
-                                                      -bearerToken "$($bearerToken)" `
-                                                      -hostName "$($idlestMachine)" `
-                                                      -otherMachines $contextMachines
-    if($idlestMachine -ne $machineActuallyStopped) {
-        Write-Host ("--> The idlest machine wasn't available anymore, we had to remove " + $machineActuallyStopped)
+    $successfullyStopped = StopJobsAndUnlicenseMachine -inputConfig $inputConfig `
+                                                       -bearerToken "$($bearerToken)" `
+                                                       -hostName "$($idlestMachine)" `
+                                                       -debug $debug
+                                                       
+    if($successfullyStopped) {
+        Write-Host ("--> ERROR: Could not stop machine " + $idlestMachine)
     }
     
-    Write-Host ("--> Getting instance Id from Hostname " + $machineActuallyStopped)
+    Write-Host ("--> Getting instance Id from Hostname " + $idlestMachine)
     $instanceId = GetInstanceIdFromHostname -inputConfig $inputConfig `
-                                              -hostName "$($machineActuallyStopped)"
+                                            -hostName "$($idlestMachine)"
     
     if($instanceId -ne "") {
         Write-Host ("--> Unjoining instance from AD " + $instanceId)
@@ -128,13 +133,13 @@ function StopMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$debu
         Write-Host ("--> Terminating instance " + $instanceId)
         TerminateInstance -inputConfig $inputConfig -instanceId $instanceId -debug $debug
         
-        Write-Host ("--> Remove Sessions for machine " + $machineActuallyStopped)
+        Write-Host ("--> Remove Sessions for machine " + $idlestMachine)
         RemoveSessionsForMachine -inputConfig $inputConfig `
                                  -bearerToken "$($bearerToken)" `
-                                 -hostName $machineActuallyStopped -debug $debug
+                                 -hostName $idlestMachine -debug $debug
     }
     else {
-        Write-Host ("--> ERROR XXX Could not retrieve the Instance Id for " + $machineActuallyStopped)
+        Write-Host ("--> ERROR XXX Could not retrieve the Instance Id for " + $idlestMachine)
     }
     
     $myDate = (date).ToString().Trim()
@@ -166,11 +171,14 @@ function SwapMachines([hashtable]$inputConfig, [string]$bearerToken, [bool]$debu
                                      -debug $debug
         
         Write-Host ("--> Stopping jobs and removing license from machine and ensuring no more work for " + $machine)
-        HardStopAndUnlicenseMachine -inputConfig $inputConfig `
-                                    -bearerToken "$($bearerToken)" `
-                                    -hostName "$($machine)" `
-                                    -job $job `
-                                    -debug $debug
+        $successfullyStopped = StopJobsAndUnlicenseMachine -inputConfig $inputConfig `
+                                                   -bearerToken "$($bearerToken)" `
+                                                   -hostName "$($machine)" `
+                                                   -debug $debug
+        
+        if($successfullyStopped) {
+            Write-Host ("--> ERROR: Could not stop machine " + $machine)
+        }
         
         Write-Host ("--> Getting instance Id from Hostname " + $machine)
         $instanceId = GetInstanceIdFromHostname -inputConfig $inputConfig `
@@ -230,15 +238,17 @@ $inputConfig = @{ `
                     tenant = "UiPathDefault"; `
                     baseUrl = "https://cloud.uipath.com/uipatjuevqpo"; `
                     minMinutesSinceJobLaunch = 1; `
-                    startMachinesAfterIdleMinutes = 5; `
-                    minMachines = 1; `
-                    maxMachines = 3; `
+                    killMachinesAfterIdleMinutes = 1; `
+                    minMachines = 0; `
+                    maxMachines = 0; `
                     maxAttemptsAtUnlicense = 3; `
-                    maxAttemptsAtStop = 3; `
-                    maxAttemptsAtKill = 3; `
+                    maxAttemptsAtStop = 30; `
+                    maxAttemptsAtKill = 30; `
                     stopInterval = 5; `
                     killInterval = 5; `
                     machineName = "MyEROtemplate"; `
+                    machineKey = "0049e89c-b1f4-4c71-83f1-04a01db4bc2d"; `
+                    machineSecret = "WnhwZsVCBOs1aeWQ"; `
                     ImageId = "ami-073ee0a3e2607d777"; `
                     NewImageId = "ami-02f7e6d82360d818d"; `
                     dnsIpAddresses = "172.31.33.93"; `
@@ -258,9 +268,11 @@ $bearerToken = AuthenticateToCloudAndGetBearerTokenClientCredentials -identitySe
               -scopes "OR.Assets OR.BackgroundTasks OR.Execution OR.Folders OR.Jobs OR.Machines OR.Monitoring OR.Robots OR.Settings.Read OR.TestSetExecutions OR.TestSets OR.TestSetSchedules OR.Users.Read OR.License" `
               -tenantName "$($tenant)"
 
-StartMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $true
+StopJobsAndUnlicenseMachine -inputConfig $inputConfig -bearerToken $bearerToken -hostName "EC2AMAZ-CUFEUOS"
 
-StopMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $true
+# StartMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $false
+
+# StopMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $false
 
 #SwapMachines -inputConfig $inputConfig -bearerToken $bearerToken
 

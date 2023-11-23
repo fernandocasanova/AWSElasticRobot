@@ -338,10 +338,10 @@ function ConnectRobotToOrchestrator([hashtable]$inputConfig, [string]$instanceId
     $tenant = $inputConfig["tenant"]
     $orchestratorApiBaseUrl = "$($baseUrl)/$($tenant)/orchestrator_"
 
-    $inputCommand = '{"commands":["& \"C:\\Program Files\\UiPath\\Studio\\UiRobot.exe\" connect --url \"%orchestratorApiBaseUrl%\" --clientID \"%clientID%\" --clientSecret \"%clientSecret%\""]}'
+    $inputCommand = '{"commands":["& \"C:\\Program Files\\UiPath\\Studio\\UiRobot.exe\" connect --url \"%orchestratorApiBaseUrl%\" --clientID \"%machineKey%\" --clientSecret \"%machineSecret%\""]}'
     $inputCommand = $inputCommand.Replace("%orchestratorApiBaseUrl%", $orchestratorApiBaseUrl)
-    $inputCommand = $inputCommand.Replace("%clientID%", $inputConfig["clientID"])
-    $inputCommand = $inputCommand.Replace("%clientSecret%", $inputConfig["clientSecret"])
+    $inputCommand = $inputCommand.Replace("%machineKey%", $inputConfig["machineKey"])
+    $inputCommand = $inputCommand.Replace("%machineSecret%", $inputConfig["machineSecret"])
     
     $outputCommand = aws ssm send-command --document-name "AWS-RunPowerShellScript" `
                                           --document-version "1" `
