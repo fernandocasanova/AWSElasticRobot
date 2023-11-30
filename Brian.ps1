@@ -239,8 +239,8 @@ $inputConfig = @{ `
                     baseUrl = "https://cloud.uipath.com/uipatjuevqpo"; `
                     minMinutesSinceJobLaunch = 1; `
                     killMachinesAfterIdleMinutes = 1; `
-                    minMachines = 0; `
-                    maxMachines = 0; `
+                    minMachines = 1; `
+                    maxMachines = 3; `
                     maxAttemptsAtUnlicense = 3; `
                     maxAttemptsAtStop = 30; `
                     maxAttemptsAtKill = 30; `
@@ -268,12 +268,12 @@ $bearerToken = AuthenticateToCloudAndGetBearerTokenClientCredentials -identitySe
               -scopes "OR.Assets OR.BackgroundTasks OR.Execution OR.Folders OR.Jobs OR.Machines OR.Monitoring OR.Robots OR.Settings.Read OR.TestSetExecutions OR.TestSets OR.TestSetSchedules OR.Users.Read OR.License" `
               -tenantName "$($tenant)"
 
-StopJobsAndUnlicenseMachine -inputConfig $inputConfig -bearerToken $bearerToken -hostName "EC2AMAZ-CUFEUOS"
+#StopJobsAndUnlicenseMachine -inputConfig $inputConfig -bearerToken $bearerToken -hostName "EC2AMAZ-CUFEUOS"
 
-# StartMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $false
+#StartMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $false
 
-# StopMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $false
+#StopMachines -inputConfig $inputConfig -bearerToken $bearerToken -debug $false
 
-#SwapMachines -inputConfig $inputConfig -bearerToken $bearerToken
+SwapMachines -inputConfig $inputConfig -bearerToken $bearerToken
 
 # EC2 

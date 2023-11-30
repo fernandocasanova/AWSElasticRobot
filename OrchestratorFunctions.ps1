@@ -354,6 +354,7 @@ function WaitWhileMachineIsBusy([hashtable]$inputConfig, `
     }
     return $success
 }
+
 function StopJobsAndUnlicenseMachine([hashtable]$inputConfig, `
                              [string]$bearerToken,`
                              [string]$hostName,`
@@ -388,7 +389,9 @@ function StopJobsAndUnlicenseMachine([hashtable]$inputConfig, `
                                  -hostName "$($hostName)" `
                                  -includeRunning $true `
                                  -debug $debug
-        
+    
+    
+    
     StopJob -inputConfig $inputConfig -bearerToken $bearerToken -job $job -killProcess $false -debug $debug
     
     # Loop until all jobs finish and the machine is not busy anymore
